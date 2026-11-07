@@ -99,6 +99,8 @@ def main():
     assert not app.exception, str(app.exception)
     assert app.sidebar.selectbox[0].value == 'Circles'
     assert not any(t[0] == 'isosurface' for t in figure_traces(app))
+    import verify_csv
+    verify_csv.main()
     print(f'PASS: {cases} dataset/split/kernel cases ({cases_3d} in 3D), reproducibility, train-only scaling, '
           'support vectors, 3D grid and linear plane, CV and Streamlit 2D/3D UI smoke checks.')
 

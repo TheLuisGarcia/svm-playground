@@ -27,8 +27,10 @@ def generate_data(dataset, n, noise, seed):
     raise ValueError(f'Unknown dataset: {dataset}')
 
 
-def split_data(X, y, test_size, seed):
-    return train_test_split(X, y, test_size=test_size, stratify=y, random_state=seed)
+def split_data(X, y, test_size, seed, *extra):
+    """Seeded stratified split. Extra arrays (e.g. original row numbers) are split identically:
+    returns X_train, X_test, y_train, y_test, then a train/test pair per extra array."""
+    return train_test_split(X, y, *extra, test_size=test_size, stratify=y, random_state=seed)
 
 
 def build_model(kernel='rbf', C=1.0, gamma='scale', degree=3, coef0=0.0):
@@ -37,8 +39,13 @@ def build_model(kernel='rbf', C=1.0, gamma='scale', degree=3, coef0=0.0):
 
 
 def plot_bounds(X, frac=0.12, min_pad=0.3):
-    """Padded per-feature plotting range, in original feature units."""
+    """Padded per-feature plotting range, in original feature units.
+
+    Use min_pad=0 for data in arbitrary units (e.g. uploaded CSVs); a constant
+    feature still gets a non-zero range.
+    """
     pad = np.maximum(np.ptp(X, axis=0) * frac, min_pad)
+    pad = np.where(pad > 0, pad, np.maximum(np.abs(X).max(axis=0), 1.0) * 0.1)
     return X.min(axis=0) - pad, X.max(axis=0) + pad
 
 
@@ -54,10 +61,16 @@ def decision_grid_3d(model, lo, hi, resolution):
     return axes, grid, model.decision_function(grid)
 
 
-def explore_C(X_train, y_train, kernel, gamma, degree, coef0, seed):
-    """Each fold fits its own scaler; held-out test data is never used here."""
+def make_cv(y_train, seed):
+    """Up to five stratified folds; never more folds than the smallest class has rows."""
     folds = min(5, int(np.bincount(y_train).min()))
-    cv = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+    return StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+
+
+def explore_C(X_train, y_train, kernel, gamma, degree, coef0, seed):
+    """Each fold fits its own scaler (a fresh pipeline); held-out test data is never used here."""
+    cv = make_cv(y_train, seed)
+    folds = cv.get_n_splits()
     rows = []
     for C in np.logspace(-2, 2, 7):
         scores = cross_validate(build_model(kernel, C, gamma, degree, coef0),
